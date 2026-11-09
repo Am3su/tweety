@@ -26,6 +26,7 @@ Tous les fichiers sont à la racine du dépôt.
 | `store.js` | Enregistrement dans le navigateur, sauvegarde / restauration |
 | `ui.js`, `modals.js`, `main.js` | Écrans et actions |
 | `export.js` | Génération du PDF de proposition |
+| `intro.mp4` | Vidéo d'introduction jouée à l'ouverture (désactivable dans « Mes informations ») |
 | `logo.js`, `logo.jpg` | Logo |
 | `jspdf.umd.min.js`, `pdf.min.js`, `pdf.worker.min.js`, `mammoth.browser.min.js` | Bibliothèques incluses (création de PDF, lecture de PDF et de Word) |
 

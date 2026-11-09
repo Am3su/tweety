@@ -14,6 +14,7 @@ document.addEventListener('click', e => {
     case 'close': closeModal(); break;
     case 'profile': modalProfile(false); break;
     case 'backup': exportBackup(); break;
+    case 'replay-intro': closeModal(); playIntro(true); break;
     case 'new-dem': modalNewDemande(); break;
     case 'open-dem': U.view = 'dem'; U.demId = el.dataset.id; U.candId = null; U.tab = 'adequation'; render(); window.scrollTo(0, 0); break;
     case 'reset-example':
@@ -65,6 +66,35 @@ document.addEventListener('change', e => {
   else if (t.id === 'c-sal') { c.salaire = +t.value || null; saveDemande(d); }
 });
 
+/* Vidéo d'introduction : lecture au démarrage, son activable, bouton « Passer » */
+function playIntro(force) {
+  const box = $('#intro'), v = $('#intro-video'), snd = $('#intro-sound'), prog = $('#intro-prog');
+  return new Promise(done => {
+    if (!box || !v || (!force && S.profile.intro === false)) { if (box) box.hidden = true; return done(); }
+    box.classList.remove('out'); box.hidden = false;
+    let finished = false;
+    const finish = () => {
+      if (finished) return; finished = true;
+      try { v.pause(); } catch (e) { }
+      box.classList.add('out'); document.removeEventListener('keydown', onKey);
+      setTimeout(() => { box.hidden = true; done(); }, 600);
+    };
+    const onKey = e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); finish(); } };
+    document.addEventListener('keydown', onKey);
+    const showSound = () => { snd.hidden = !v.muted; };
+    snd.onclick = () => { v.muted = false; v.volume = 1; v.play().catch(() => { }); showSound(); };
+    $('#intro-skip').onclick = finish;
+    v.onended = finish;
+    v.onerror = finish;
+    v.ontimeupdate = () => { if (v.duration) prog.style.width = (v.currentTime / v.duration * 100) + '%'; };
+    v.currentTime = 0;
+    // Essai avec le son ; si le navigateur le refuse, lecture muette avec bouton « Activer le son »
+    v.muted = false;
+    v.play().then(showSound).catch(() => { v.muted = true; showSound(); v.play().catch(finish); });
+    setTimeout(() => { if (!finished && v.readyState === 0) finish(); }, 8000); // vidéo introuvable
+  });
+}
+
 initStore();
 render();
-if (!S.profile.onboarded) setTimeout(() => modalProfile(true), 250);
+playIntro().then(() => { if (!S.profile.onboarded) setTimeout(() => modalProfile(true), 150); });

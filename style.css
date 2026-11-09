@@ -264,3 +264,18 @@ table.t td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align:
   .top .btn.primary { padding: 8px 10px }
   .top-in { gap: 10px }
 }
+
+/* Vidéo d'introduction */
+.intro { position: fixed; inset: 0; z-index: 100; background: #1F2023; display: grid; place-items: center; transition: opacity .6s ease }
+.intro video { width: 100%; height: 100%; object-fit: contain; background: #1F2023 }
+.intro.out { opacity: 0; pointer-events: none }
+.intro-ctrl { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }
+.ib { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.1); color: #fff; font: 600 14px var(--f-text); cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px) }
+.ib:hover { background: rgba(255,255,255,.2) }
+.ib.strong { background: #D7141F; border-color: #D7141F }
+.ib.strong:hover { background: #A90F18 }
+.ib svg { width: 18px; height: 18px; flex: none }
+.intro-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.12) }
+.intro-bar i { display: block; height: 100%; width: 0; background: #D7141F; transition: width .25s linear }
+@media (prefers-reduced-motion: reduce) { .intro { transition: none } .intro-bar i { transition: none } }
+.intro[hidden] { display: none }

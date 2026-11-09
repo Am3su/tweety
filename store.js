@@ -5,7 +5,7 @@ let _lsWarned = false;
 
 function defaultProfile() {
   return { prenom: '', nom: '', fonction: "Ingénieure d'affaires", email: '', tel: '', structure: '', adresse: '', site: '',
-    couleur: '#D7141F', couleur2: '#2E3336', logo: null, useDefaultLogo: true, marge: 25, onboarded: false, apiKey: '', apiModel: 'claude-sonnet-4-5' };
+    couleur: '#D7141F', couleur2: '#2E3336', logo: null, useDefaultLogo: true, marge: 25, onboarded: false, intro: true, apiKey: '', apiModel: 'claude-sonnet-4-5' };
 }
 function lsWrite() {
   try { localStorage.setItem(LS_KEY, JSON.stringify({ profile: S.profile, demandes: S.demandes, savedAt: new Date().toISOString() })); }

@@ -30,6 +30,7 @@ function modalProfile(first) {
         ${p.logo && !p.useDefaultLogo ? `<button class="btn sm ghost" id="p-logo-reset">Logo par défaut</button>` : ''}</div></div>
       <div class="field"><label>Couleurs de la structure</label><div class="colorpick"><input type="color" id="p-couleur" value="${esc(p.couleur || '#D7141F')}" aria-label="Couleur principale"><input type="color" id="p-couleur2" value="${esc(p.couleur2 || '#2E3336')}" aria-label="Couleur secondaire"><span class="small muted">principale · secondaire</span></div></div>
       <div class="field"><label for="p-marge">Marge cible par défaut (%)</label><input id="p-marge" type="number" min="0" max="60" value="${p.marge ?? 25}"></div>
+      <div class="field span2"><label>Vidéo d'introduction</label><div class="row"><label class="toggle"><input type="checkbox" id="p-intro" ${p.intro !== false ? 'checked' : ''}>Afficher la vidéo au démarrage</label><button class="btn sm" data-act="replay-intro">Revoir la vidéo</button></div></div>
     </div>
     <details style="margin-top:6px" ${p.apiKey ? 'open' : ''}><summary class="eyebrow" style="cursor:pointer">Assistant IA (facultatif)</summary>
       <p class="small muted" style="margin:8px 0">Avec votre clé API Claude, l'outil analyse les besoins et les CV plus finement, rédige les synthèses et des questions d'entretien sur-mesure. Sans clé, l'analyse par mots-clés fonctionne. La clé reste uniquement dans ce navigateur : ne l'enregistrez pas sur un ordinateur partagé.</p>
@@ -49,7 +50,7 @@ function modalProfile(first) {
   const rs = $('#p-logo-reset', ov); if (rs) rs.onclick = () => { reset = true; newLogo = null; $('#p-logo-prev', ov).src = LOGO; };
   $('#p-save', ov).onclick = () => {
     for (const k of ['prenom', 'nom', 'fonction', 'tel', 'email', 'structure', 'site', 'adresse', 'couleur', 'couleur2', 'apiKey', 'apiModel']) p[k] = $('#p-' + k, ov).value.trim();
-    p.marge = +$('#p-marge', ov).value || 25;
+    p.marge = +$('#p-marge', ov).value || 25; p.intro = $('#p-intro', ov).checked;
     if (newLogo) { p.logo = newLogo; p.useDefaultLogo = false; }
     if (reset) { p.useDefaultLogo = true; p.logo = null; }
     p.onboarded = true; saveProfile(); closeModal(); render(); toast('Informations enregistrées');
