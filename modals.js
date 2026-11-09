@@ -32,6 +32,8 @@ function modalProfile(first) {
       <div class="field"><label for="p-marge">Marge cible par défaut (%)</label><input id="p-marge" type="number" min="0" max="60" value="${p.marge ?? 25}"></div>
       <div class="field span2"><label>Vidéo d'introduction</label><div class="row"><label class="toggle"><input type="checkbox" id="p-intro" ${p.intro !== false ? 'checked' : ''}>Afficher la vidéo au démarrage</label><button class="btn sm" data-act="replay-intro">Revoir la vidéo</button></div></div>
     </div>
+    <div class="field" style="margin-top:6px"><div class="row" style="justify-content:space-between"><label for="p-signature">Signature de mes mails</label><button class="btn sm ghost" id="p-sig-def" type="button">Générer depuis mes informations</button></div>
+      <textarea id="p-signature" rows="5" placeholder="Camille Durand&#10;Ingénieure d'affaires · Nexa Conseil&#10;06 12 34 56 78 · camille.durand@nexa-conseil.fr">${esc(p.signature || '')}</textarea><span class="hint">Ajoutée automatiquement en bas des mails de proposition.</span></div>
     <details style="margin-top:6px" ${p.apiKey ? 'open' : ''}><summary class="eyebrow" style="cursor:pointer">Assistant IA (facultatif)</summary>
       <p class="small muted" style="margin:8px 0">Avec votre clé API Claude, l'outil analyse les besoins et les CV plus finement, rédige les synthèses et des questions d'entretien sur-mesure. Sans clé, l'analyse par mots-clés fonctionne. La clé reste uniquement dans ce navigateur : ne l'enregistrez pas sur un ordinateur partagé.</p>
       <div class="fgrid"><div class="field"><label for="p-apiKey">Clé API Claude</label><input id="p-apiKey" type="password" autocomplete="off" value="${esc(p.apiKey || '')}" placeholder="sk-ant-…"></div>
@@ -46,11 +48,12 @@ function modalProfile(first) {
     const file = e.target.files[0]; if (!file) return;
     newLogo = await shrinkImage(file, 360); $('#p-logo-prev', ov).src = newLogo; reset = false;
   };
+  $('#p-sig-def', ov).onclick = () => { for (const k of ['prenom', 'nom', 'fonction', 'tel', 'email', 'structure', 'site']) p[k] = $('#p-' + k, ov).value.trim(); $('#p-signature', ov).value = defaultSignature(); };
   $('#p-restore', ov).onchange = e => { const f = e.target.files[0]; if (f) importBackup(f).then(closeModal).catch(err => toast('Restauration impossible : ' + err.message)); };
   const rs = $('#p-logo-reset', ov); if (rs) rs.onclick = () => { reset = true; newLogo = null; $('#p-logo-prev', ov).src = LOGO; };
   $('#p-save', ov).onclick = () => {
     for (const k of ['prenom', 'nom', 'fonction', 'tel', 'email', 'structure', 'site', 'adresse', 'couleur', 'couleur2', 'apiKey', 'apiModel']) p[k] = $('#p-' + k, ov).value.trim();
-    p.marge = +$('#p-marge', ov).value || 25; p.intro = $('#p-intro', ov).checked;
+    p.marge = +$('#p-marge', ov).value || 25; p.intro = $('#p-intro', ov).checked; p.signature = $('#p-signature', ov).value.trim();
     if (newLogo) { p.logo = newLogo; p.useDefaultLogo = false; }
     if (reset) { p.useDefaultLogo = true; p.logo = null; }
     p.onboarded = true; saveProfile(); closeModal(); render(); toast('Informations enregistrées');
@@ -309,13 +312,17 @@ function copyText(t) {
 }
 
 /* ---------- Mail client ---------- */
+function defaultSignature() {
+  const p = S.profile;
+  return [[p.prenom, p.nom].filter(Boolean).join(' '), p.fonction, p.structure, p.tel, p.email, p.site].filter(x => x && String(x).trim()).join('\n');
+}
+function currentSignature() { return (S.profile.signature || '').trim() || defaultSignature(); }
+function mailSubject(d) { return `Proposition de profil – ${d.titre}`; }
 function mailText(d, c, A, o) {
-  const p = S.profile; const name = o.anon ? `un(e) consultant(e) (réf. ${refCode(c)})` : `${c.prenom} ${c.nom}`;
+  const name = o.anon ? `un(e) consultant(e) (réf. ${refCode(c)})` : `${c.prenom} ${c.nom}`;
   const top = A.skills.filter(k => k.score >= 0.6).map(k => k.nom);
   const civ = (d.contact || '').split(/[–-]/)[0].trim();
-  return `Objet : Proposition de profil – ${d.titre}
-
-Bonjour${civ ? ' ' + civ.split(' ')[0] : ''},
+  return `Bonjour${civ ? ' ' + civ.split(' ')[0] : ''},
 
 Suite à votre demande, j'ai le plaisir de vous proposer ${name}${c.titre ? ' (' + c.titre + ')' : ''}, qui cumule ${Math.round(A.rawYears)} ans d'expérience, dont ${A.effYears.toFixed(1).replace('.', ',')} ans sur des missions directement comparables.
 
@@ -329,15 +336,84 @@ Vous trouverez son dossier de compétences en pièce jointe. Je reste à votre d
 
 Bien cordialement,
 
-${[p.prenom + ' ' + p.nom, p.fonction, p.structure, p.tel, p.email].filter(x => x && x.trim()).join('\n')}`;
+${o.signature}`;
+}
+/* Paramètres du PDF : ceux du dernier export de ce profil, sinon les réglages par défaut */
+function pdfParams(d, c, A) {
+  const base = { anon: true, anonEnt: true, score: true, client: true, tjm: c.tjmPropose || A.tjm, synth: '' };
+  const o = Object.assign(base, c.pdfOpts || {});
+  o.tjm = c.tjmPropose || o.tjm || A.tjm;
+  if (!o.synth) o.synth = localSynthese(d, c, A, o.anon);
+  return o;
+}
+function pdfFileName(d, c, o) {
+  const clean = x => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '');
+  return `Proposition_${clean(o.anon ? refCode(c) : c.prenom + '_' + c.nom)}_${clean(d.client || 'client')}.pdf`;
 }
 function modalMail(d, c) {
   const A = analyse(d, c);
-  const ov = openModal(mhead('Mail de proposition', 'À copier dans votre messagerie, avec le PDF en pièce jointe') + `<div class="mbody">
-    <label class="toggle"><input type="checkbox" id="m-anon" checked>Anonymiser le candidat</label>
-    <div class="field"><textarea id="m-text" rows="20" aria-label="Texte du mail"></textarea></div></div>
-    <div class="mfoot"><button class="btn" data-act="close">Fermer</button><button class="btn primary" id="m-copy">${ic('copy')}Copier le mail</button></div>`);
-  const upd = () => $('#m-text', ov).value = mailText(d, c, A, { anon: $('#m-anon', ov).checked, tjm: A.tjm });
-  upd(); $('#m-anon', ov).onchange = upd;
-  $('#m-copy', ov).onclick = () => copyText($('#m-text', ov).value);
+  const P = pdfParams(d, c, A);
+  const canShareFiles = (() => { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.pdf', { type: 'application/pdf' })] })); } catch (e) { return false; } })();
+  const ov = openModal(mhead('Mail de proposition', esc(d.client || '') + ' · ' + esc(c.prenom + ' ' + c.nom)) + `<div class="mbody">
+    <div class="fgrid"><div class="field"><label for="m-to">Destinataire</label><input id="m-to" type="email" value="${esc(d.contactEmail || '')}" placeholder="adresse e-mail du client"></div>
+      <div class="field"><label for="m-subj">Objet</label><input id="m-subj" value="${esc(mailSubject(d))}"></div></div>
+    <div class="card" style="background:var(--surface-2);border:0;display:grid;gap:8px">
+      <div class="row" style="justify-content:space-between"><div class="row"><span style="width:28px;height:28px;border-radius:6px;background:var(--red);color:#fff;display:grid;place-items:center">${ic('file')}</span>
+        <div><b class="small">Pièce jointe : dossier de compétences PDF</b><div class="small muted" id="m-pdfsum"></div></div></div>
+        <button class="btn sm" id="m-pdfset">${ic('edit')}Paramètres du PDF</button></div>
+      <div class="row"><label for="m-tjm" class="small" style="font-weight:700">TJM proposé (€ HT / jour)</label><input id="m-tjm" type="number" step="5" value="${P.tjm}" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--surface)"><span class="small muted" id="m-mg"></span>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="m-anon" ${P.anon ? 'checked' : ''}>Anonymiser le candidat</label></div>
+    </div>
+    <div class="field"><label for="m-text">Message</label><textarea id="m-text" rows="13"></textarea></div>
+    <div class="field"><div class="row" style="justify-content:space-between"><label for="m-sig">Ma signature</label>
+      <div class="row"><button class="btn sm ghost" id="m-sig-def">Depuis mes informations</button><button class="btn sm" id="m-sig-save">${ic('check')}Enregistrer pour mes prochains mails</button></div></div>
+      <textarea id="m-sig" rows="5" placeholder="Prénom Nom&#10;Fonction&#10;Structure&#10;Téléphone · e-mail">${esc(currentSignature())}</textarea></div>
+    <div id="m-msg"></div></div>
+    <div class="mfoot" style="justify-content:space-between">
+      <div class="row">${canShareFiles ? `<button class="btn dark" id="m-share">${ic('mail')}Envoyer avec ma messagerie (PDF joint)</button>` : ''}<button class="btn" id="m-open">${ic('mail')}Ouvrir dans ma messagerie</button></div>
+      <div class="row"><button class="btn" id="m-pdf">${ic('dl')}Télécharger le PDF</button><button class="btn primary" id="m-copy">${ic('copy')}Copier le mail</button></div></div>`, 'wide');
+  let edited = false;
+  const body = () => $('#m-text', ov).value.replace(/\s+$/, '') ;
+  const full = () => body();
+  const opts = () => Object.assign({}, P, { tjm: +$('#m-tjm', ov).value || P.tjm, anon: $('#m-anon', ov).checked });
+  const upd = (force) => {
+    const o = opts();
+    const mg = o.tjm - A.cout;
+    $('#m-mg', ov).textContent = `marge ${eur(mg)}/j · ${o.tjm ? (mg / o.tjm * 100).toFixed(1).replace('.', ',') : 0} %`;
+    $('#m-pdfsum', ov).textContent = `${pdfFileName(d, c, o)} · TJM ${eur(o.tjm)} HT · ${o.anon ? 'anonymisé' : 'nominatif'}${o.anonEnt ? ', employeurs masqués' : ''}${o.score ? ', adéquation affichée' : ''}`;
+    if (!edited || force) $('#m-text', ov).value = mailText(d, c, A, { anon: o.anon, tjm: o.tjm, signature: $('#m-sig', ov).value.trim() });
+  };
+  upd(true);
+  $('#m-text', ov).addEventListener('input', () => { edited = true; });
+  const regen = () => { if (edited) { $('#m-msg', ov).innerHTML = `<div class="alert info">${ic('info')}<span>Vous avez modifié le message : il n'est pas régénéré. <button class="btn sm" id="m-regen">Régénérer le message</button></span></div>`; $('#m-regen', ov).onclick = () => { edited = false; $('#m-msg', ov).innerHTML = ''; upd(true); }; } upd(); };
+  $('#m-tjm', ov).addEventListener('input', () => { c.tjmPropose = +$('#m-tjm', ov).value || null; saveDemande(d); regen(); });
+  $('#m-anon', ov).addEventListener('change', () => { c.pdfOpts = Object.assign({}, c.pdfOpts || {}, { anon: $('#m-anon', ov).checked, synth: '' }); P.anon = $('#m-anon', ov).checked; P.synth = localSynthese(d, c, A, P.anon); saveDemande(d); regen(); });
+  $('#m-sig', ov).addEventListener('input', regen);
+  $('#m-sig-def', ov).onclick = () => { $('#m-sig', ov).value = defaultSignature(); regen(); };
+  $('#m-sig-save', ov).onclick = () => { S.profile.signature = $('#m-sig', ov).value.trim(); saveProfile(); toast('Signature enregistrée'); };
+  $('#m-to', ov).addEventListener('change', () => { d.contactEmail = $('#m-to', ov).value.trim(); saveDemande(d); });
+  $('#m-pdfset', ov).onclick = () => { c.tjmPropose = opts().tjm; saveDemande(d); modalExport(d, c); };
+  const makePdf = async () => { const o = opts(); const blob = await buildPDF(d, c, o); return { blob, name: pdfFileName(d, c, o) }; };
+  const busy = (b, on, label) => { b.disabled = on; if (on) { b.dataset.l = b.innerHTML; b.innerHTML = '<span class="spin"></span> ' + label; } else b.innerHTML = b.dataset.l; };
+  const markSent = () => { if (c.pipeline === 'qualifier' || c.pipeline === 'shortlist') { c.pipeline = 'propose'; saveDemande(d); } };
+  $('#m-copy', ov).onclick = () => copyText(full());
+  $('#m-pdf', ov).onclick = async () => { const b = $('#m-pdf', ov); busy(b, true, 'Création…'); try { const f = await makePdf(); downloadBlob(f.blob, f.name); toast('PDF téléchargé : joignez-le à votre mail'); markSent(); } catch (e) { toast('Le PDF n\'a pas pu être créé'); } busy(b, false); };
+  $('#m-open', ov).onclick = async () => {
+    const to = $('#m-to', ov).value.trim(); d.contactEmail = to; saveDemande(d);
+    const b = $('#m-open', ov); busy(b, true, 'Préparation…');
+    try { const f = await makePdf(); downloadBlob(f.blob, f.name); } catch (e) { }
+    busy(b, false);
+    const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent($('#m-subj', ov).value)}&body=${encodeURIComponent(full())}`;
+    window.location.href = url; markSent();
+    $('#m-msg', ov).innerHTML = `<div class="alert info">${ic('info')}<span>Votre messagerie s'ouvre avec le message et la signature. Le PDF vient d'être téléchargé : faites-le glisser dans le mail (les liens « mailto » ne permettent pas de joindre un fichier automatiquement).</span></div>`;
+  };
+  const sh = $('#m-share', ov); if (sh) sh.onclick = async () => {
+    busy(sh, true, 'Préparation…');
+    try {
+      const f = await makePdf(); const file = new File([f.blob], f.name, { type: 'application/pdf' });
+      busy(sh, false);
+      await navigator.share({ title: $('#m-subj', ov).value, text: full(), files: [file] });
+      markSent(); toast('Mail préparé avec le PDF');
+    } catch (e) { busy(sh, false); if (e && e.name !== 'AbortError') toast('Partage impossible : utilisez « Copier le mail » et « Télécharger le PDF »'); }
+  };
 }

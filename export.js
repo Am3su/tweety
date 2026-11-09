@@ -7,15 +7,15 @@ function pdfSafe(s) {
 
 function modalExport(d, c) {
   const A = analyse(d, c); const p = S.profile;
-  const o = { anon: true, anonEnt: true, score: true, client: true, tjm: A.tjm, synth: localSynthese(d, c, A, true) };
+  const o = pdfParams(d, c, A);
   const ov = openModal(mhead('Exporter la proposition PDF', 'Dossier de compétences aux couleurs de ' + esc(p.structure || 'votre structure')) + `<div class="mbody">
     ${!p.structure || !p.email ? `<div class="alert warn">${ic('alert')}<span>Vos informations commerciales sont incomplètes. <button class="btn sm" data-act="profile">Compléter</button></span></div>` : ''}
     <div class="two"><div style="display:grid;gap:12px">
       <div class="field"><label for="x-tjm">TJM proposé au client (€ HT / jour)</label><input id="x-tjm" type="number" step="5" value="${o.tjm}"><span class="hint" id="x-mg"></span></div>
-      <label class="toggle"><input type="checkbox" id="x-anon" checked>Anonymiser le candidat (initiales et référence, sans coordonnées)</label>
-      <label class="toggle"><input type="checkbox" id="x-anonEnt" checked>Masquer les noms des anciens employeurs</label>
-      <label class="toggle"><input type="checkbox" id="x-score" checked>Afficher l'adéquation au besoin</label>
-      <label class="toggle"><input type="checkbox" id="x-client" checked>Mentionner le nom du client</label>
+      <label class="toggle"><input type="checkbox" id="x-anon" ${o.anon ? 'checked' : ''}>Anonymiser le candidat (initiales et référence, sans coordonnées)</label>
+      <label class="toggle"><input type="checkbox" id="x-anonEnt" ${o.anonEnt ? 'checked' : ''}>Masquer les noms des anciens employeurs</label>
+      <label class="toggle"><input type="checkbox" id="x-score" ${o.score ? 'checked' : ''}>Afficher l'adéquation au besoin</label>
+      <label class="toggle"><input type="checkbox" id="x-client" ${o.client ? 'checked' : ''}>Mentionner le nom du client</label>
     </div>
     <div><div class="eyebrow" style="margin-bottom:6px">Aperçu de l'en-tête</div><div class="pdf-prev" id="x-prev"></div></div></div>
     <div class="field"><div class="row" style="justify-content:space-between"><label for="x-synth">Synthèse du profil</label><button class="btn sm" id="x-ai">${ic('spark')}Rédiger avec l'IA</button></div><textarea id="x-synth" rows="5">${esc(o.synth)}</textarea></div>
@@ -42,8 +42,8 @@ function modalExport(d, c) {
     const opts = { anon: $('#x-anon', ov).checked, anonEnt: $('#x-anonEnt', ov).checked, score: $('#x-score', ov).checked, client: $('#x-client', ov).checked, tjm: +$('#x-tjm', ov).value || A.tjm, synth: $('#x-synth', ov).value.trim() };
     try {
       const blob = await buildPDF(d, c, opts);
-      const fname = `Proposition_${(opts.anon ? refCode(c) : (c.prenom + '_' + c.nom)).replace(/[^\wÀ-ÿ-]+/g, '_')}_${(d.client || 'client').replace(/[^\wÀ-ÿ-]+/g, '_')}.pdf`;
-      c.tjmPropose = opts.tjm; if (c.pipeline === 'qualifier' || c.pipeline === 'shortlist') c.pipeline = 'propose'; saveDemande(d);
+      const fname = pdfFileName(d, c, opts);
+      c.tjmPropose = opts.tjm; c.pdfOpts = Object.assign({}, opts); if (c.pipeline === 'qualifier' || c.pipeline === 'shortlist') c.pipeline = 'propose'; saveDemande(d);
       downloadBlob(blob, fname); closeModal(); renderMain(); toast('PDF téléchargé');
     } catch (e) {
       b.disabled = false; b.innerHTML = ic('dl') + 'Télécharger le PDF';
